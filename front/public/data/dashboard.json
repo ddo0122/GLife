@@ -1,0 +1,36 @@
+[
+  {
+    "year": 2025,
+    "quarters": [
+      {
+        "quarter": "1분기",
+        "training": "안전 장비 착용 교육",
+        "employees": [
+          { "id": "001", "name": "홍길동", "actions": [80, 90, 100] },
+          { "id": "002", "name": "김철수", "actions": [70, 85, 90] },
+          { "id": "003", "name": "이영희", "actions": [60, 75, 80] }
+        ]
+      },
+      {
+        "quarter": "2분기",
+        "training": "화재 대피 훈련",
+        "employees": [
+          { "id": "001", "name": "홍길동", "actions": [90, 95, 100] },
+          { "id": "003", "name": "이영희", "actions": [70, 80, 75] }
+        ]
+      }
+    ]
+  },
+  {
+    "year": 2024,
+    "quarters": [
+      {
+        "quarter": "1분기",
+        "training": "전기 안전 교육",
+        "employees": [
+          { "id": "002", "name": "김철수", "actions": [80, 85, 90] }
+        ]
+      }
+    ]
+  }
+]
