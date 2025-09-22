@@ -1,0 +1,108 @@
+/* 화면 전체 배경 & 중앙 정렬 */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(135deg, #74ebd5 0%, #ACB6E5 100%);
+  font-family: 'Noto Sans KR', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+/* 카드 */
+.glass-card {
+  width: 420px;
+  padding: 28px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+}
+
+/* 헤더 */
+.login-header { text-align: center; margin-bottom: 16px; }
+.login-title { font-size: 24px; font-weight: 800; color: #111827; }
+.login-subtitle { font-size: 12px; color: #6b7280; margin-top: 6px; }
+
+/* 폼 */
+.login-form { display: grid; gap: 12px; }
+.form-field { display: grid; gap: 6px; }
+.label { font-size: 12px; color: #374151; }
+
+/* 인풋 */
+.input {
+  width: 100%;
+  padding: 12px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+  font-size: 14px;
+  color: #111827;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.input::placeholder { color: #9ca3af; }
+.input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,.15);
+}
+
+/* 비밀번호 행 */
+.password-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 버튼 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  border: none;
+  transition: transform .04s ease, box-shadow .15s;
+}
+
+.btn:disabled {
+  opacity: .65;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  width: 100%;
+  background: #4f46e5;
+  color: #fff;
+  box-shadow: 0 6px 14px rgba(79,70,229,.3);
+}
+.btn-primary:hover { background: #4338ca; }
+.btn-primary:active { transform: translateY(1px); }
+
+/* 투명/보조 버튼 */
+.btn-ghost {
+  background: #f3f4f6;
+  color: #111827;
+  padding: 10px 12px;
+  font-weight: 600;
+}
+.btn-ghost:hover { background: #e5e7eb; }
+
+/* 링크 */
+.link {
+  margin-top: 8px;
+  display: block;
+  text-align: center;
+  color: #4f46e5;
+  font-size: 14px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.link:hover { text-decoration: underline; }
+
+/* 에러 텍스트 */
+.error-text { color: #dc2626; font-size: 12px; }
