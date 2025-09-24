@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import SidebarBrand from "../components/SidebarBrand";
+import SidebarMenu from "../components/SidebarMenu";
 import { http } from "../lib/http";
 
 const USE_DUMMY_DATA = import.meta.env?.VITE_USE_LOCAL_AUTH === "true";
@@ -82,37 +82,9 @@ export default function SafetyNotices() {
 
   return (
     <div className="flex h-screen bg-gradient-to-r from-pink-300 via-purple-300 to-blue-300">
-      <aside className="w-64 bg-gray-800 text-white p-4">
+      <aside className="w-64 bg-gray-800 text-white p-4 flex flex-col">
         <SidebarBrand />
-        <nav>
-          <ul className="space-y-2">
-            <li>
-              <Link to="/dashboard" className="block p-2 hover:bg-gray-700 rounded">
-                Dashboard
-              </Link>
-            </li>
-            <li>
-              <Link to="/schedule" className="block p-2 hover:bg-gray-700 rounded">
-                Schedule
-              </Link>
-            </li>
-            <li>
-              <Link to="/viewer" className="block p-2 hover:bg-gray-700 rounded">
-                Viewer
-              </Link>
-            </li>
-            <li>
-              <Link to="/employee" className="block p-2 hover:bg-gray-700 rounded">
-                Employee
-              </Link>
-            </li>
-            <li>
-              <Link to="/notices" className="block p-2 rounded bg-gray-900/70">
-                Notices
-              </Link>
-            </li>
-          </ul>
-        </nav>
+        <SidebarMenu />
       </aside>
 
       <main className="flex-1 overflow-y-auto px-6 py-10">

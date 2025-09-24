@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import * as RealAPI from "../lib/api"; // 실제 API (모의모드 OFF일 때 사용)
-import { Link } from "react-router-dom";
 import SidebarBrand from "../components/SidebarBrand";
+import SidebarMenu from "../components/SidebarMenu";
 import { dummyScheduleApi } from "../lib/dummyData";
 
 // 로컬 개발(.env에서 VITE_USE_LOCAL_AUTH=true)일 때는 공통 더미 데이터 사용
@@ -82,37 +82,9 @@ export default function ScheduleViewer(){
   return (
     <div className="flex h-screen bg-gradient-to-r from-pink-300 via-purple-300 to-blue-300">
       {/* Sidebar */}
-      <aside className="w-64 bg-gray-800 text-white p-4">
+      <aside className="w-64 bg-gray-800 text-white p-4 flex flex-col">
         <SidebarBrand />
-        <nav>
-          <ul className="space-y-2">
-            <li>
-              <Link to="/dashboard" className="block p-2 hover:bg-gray-700 rounded">
-                Dashboard
-              </Link>
-            </li>
-            <li>
-              <Link to="/schedule" className="block p-2 hover:bg-gray-700 rounded">
-                Schedule
-              </Link>
-            </li>
-            <li>
-              <Link to="/viewer" className="block p-2 hover:bg-gray-700 rounded">
-                Viewer
-              </Link>
-            </li>
-            <li>
-              <Link to="/employee" className="block p-2 hover:bg-gray-700 rounded">
-                Employee
-              </Link>
-            </li>
-            <li>
-              <Link to="/notices" className="block p-2 hover:bg-gray-700 rounded">
-                Notices
-              </Link>
-            </li>
-          </ul>
-        </nav>
+        <SidebarMenu />
       </aside>
 
       <div className="mx-auto w-full max-w-6xl space-y-6 mt-12 px-6">
