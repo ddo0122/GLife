@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import SidebarBrand from "../components/SidebarBrand";
+import { getDummyDashboardData } from "../lib/dummyData";
+
+const USE_DUMMY_DATA = import.meta.env?.VITE_USE_LOCAL_AUTH === "true";
 
 const Dashboard = () => {
   const [data, setData] = useState([]);
@@ -15,16 +19,40 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    fetch('/data/dashboard.json')
-      .then(res => res.json())
-      .then(json => {
+    let isMounted = true;
+
+    const initSelection = (dataset) => {
+      if (!dataset.length) return;
+      const firstYear = dataset[0];
+      setSelectedYear(firstYear.year);
+      if (firstYear.quarters?.length) setSelectedQuarter(firstYear.quarters[0].quarter);
+    };
+
+    const load = async () => {
+      if (USE_DUMMY_DATA) {
+        const dummy = getDummyDashboardData();
+        if (!isMounted) return;
+        setData(dummy);
+        initSelection(dummy);
+        return;
+      }
+
+      try {
+        const res = await fetch("/data/dashboard.json");
+        const json = await res.json();
+        if (!isMounted) return;
         setData(json);
-        if (json.length > 0) {
-          setSelectedYear(json[0].year);
-          if (json[0].quarters.length > 0) setSelectedQuarter(json[0].quarters[0].quarter);
-        }
-      })
-      .catch(err => console.error('Error fetching data:', err));
+        initSelection(json);
+      } catch (err) {
+        console.error("Error fetching data:", err);
+      }
+    };
+
+    load();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const currentYearData = data.find(d => d.year === selectedYear);
@@ -35,28 +63,12 @@ const Dashboard = () => {
       {/* Sidebar (Home 기준) */}
       {/* Sidebar */}
       <aside className="w-64 bg-gray-800 text-white p-4">
-        <div className="mb-8">
-          <div className="mb-8 flex items-center gap-2">
-            {/* 로고 자리 */}
-            <Link to="/" className="w-10 h-10 bg-white rounded flex items-center justify-center text-gray-800 font-bold">
-              로고
-            </Link>
-            {/* 회사 이름 */}
-            <Link to="/" className="text-xl font-bold">
-              회사 이름
-            </Link>
-          </div>
-        </div>
+        <SidebarBrand />
         <nav>
           <ul className="space-y-2">
             <li>
               <Link to="/dashboard" className="block p-2 hover:bg-gray-700 rounded">
                 Dashboard
-              </Link>
-            </li>
-            <li>
-              <Link to="/setting" className="block p-2 hover:bg-gray-700 rounded">
-                Setting
               </Link>
             </li>
             <li>
@@ -72,6 +84,11 @@ const Dashboard = () => {
             <li>
               <Link to="/employee" className="block p-2 hover:bg-gray-700 rounded">
                 Employee
+              </Link>
+            </li>
+            <li>
+              <Link to="/notices" className="block p-2 hover:bg-gray-700 rounded">
+                Notices
               </Link>
             </li>
           </ul>

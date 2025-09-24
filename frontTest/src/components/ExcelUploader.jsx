@@ -1,6 +1,7 @@
 import { useState } from "react";
 import * as XLSX from "xlsx";
 import axios from "axios";
+import { http } from "../lib/http";
 
 const headerMap = {
   "사번": "empNo", "사원번호":"empNo", "번호":"empNo",
@@ -61,12 +62,32 @@ export default function ExcelUploader() {
 
   const sendToServer = async () => {
     try {
+      const base = import.meta.env?.VITE_API_BASE_URL || import.meta.env?.VITE_API_BASE || "";
+      const bulkUrl = base ? `${base.replace(/\/$/, "")}/employees/bulk` : "/api/employees/bulk";
+
       const { data } = await axios.post(
-        import.meta.env.VITE_API_BASE
-          ? `${import.meta.env.VITE_API_BASE}/api/employees/bulk`
-          : "http://localhost:4000/api/employees/bulk",
-        { employees: rows }
+        bulkUrl,
+        { employees: rows },
+        { withCredentials: true }
       );
+
+      let employees = null;
+      let schedules = null;
+      try {
+        employees = await http("/employees");
+      } catch (err) {
+        console.error("직원 목록 동기화 실패", err);
+      }
+      try {
+        schedules = await http("/education-schedules");
+      } catch (err) {
+        console.error("교육 일정 동기화 실패", err);
+      }
+
+      window.dispatchEvent(
+        new CustomEvent("app:data-sync", { detail: { employees, schedules } })
+      );
+
       alert("전송 완료: " + JSON.stringify(data));
     } catch (e) {
       console.error(e);

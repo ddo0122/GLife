@@ -1,10 +1,10 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
-import Setting from "./pages/Setting";
 import EducationSchedule from "./pages/EducationSchedule";
 import ScheduleViewer from "./pages/ScheduleViewer";
 import EmployeeManage from "./pages/EmployeeManage";
+import SafetyNotices from "./pages/SafetyNotices";
 
 // ⬇️ 추가 그대로 유지
 import { AuthProvider } from "./context/AuthContext";
@@ -28,10 +28,10 @@ function App() {
           {/* 보호 페이지 묶음 */}
           <Route element={<PrivateRoute />}>
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/setting" element={<Setting />} />
             <Route path="/schedule" element={<EducationSchedule />} />
             <Route path="/viewer" element={<ScheduleViewer />} />
             <Route path="/employee" element={<EmployeeManage />} />
+            <Route path="/notices" element={<SafetyNotices />} />
           </Route>
 
           {/* 존재하지 않는 경로 → 로그인 */}

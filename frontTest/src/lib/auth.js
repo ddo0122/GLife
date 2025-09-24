@@ -11,7 +11,6 @@ export async function login({ id, password }) {
   const useLocal =
     (import.meta?.env?.VITE_USE_LOCAL_AUTH === "true") ||
     !import.meta?.env?.VITE_API_BASE_URL;
-gi
   if (useLocal) {
     if (id === "test" && password === "test") {
       const user = { id: "test", name: "테스트 사용자", role: "admin" };

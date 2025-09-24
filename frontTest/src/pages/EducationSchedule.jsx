@@ -1,232 +1,451 @@
-import { useEffect, useRef, useState, useMemo } from "react";
-import FullCalendar from "@fullcalendar/react";
-import dayGridPlugin from "@fullcalendar/daygrid";
-import timeGridPlugin from "@fullcalendar/timegrid";
-import interactionPlugin from "@fullcalendar/interaction";
-import koLocale from "@fullcalendar/core/locales/ko";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import SidebarBrand from "../components/SidebarBrand";
+import { dummyScheduleData } from "../lib/dummyData";
+import { getAuthToken } from "../lib/http";
 
-const STORAGE_KEY = "edu_schedule_events_fc_v1";
+const USE_DUMMY_DATA = import.meta.env?.VITE_USE_LOCAL_AUTH === "true";
+const API_BASE_URL = (import.meta.env?.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
+const STORAGE_KEY = "edu_schedule_by_year_v2";
 
-/* ---------- 유틸 ---------- */
-function daysInMonth(y, m /* 1~12 */) {
-  return new Date(y, m, 0).getDate();
-}
-function clamp(n, min, max) {
-  return Math.max(min, Math.min(max, n));
-}
+const QUARTERS = [
+  { value: 1, label: "1분기" },
+  { value: 2, label: "2분기" },
+  { value: 3, label: "3분기" },
+  { value: 4, label: "4분기" },
+];
 
-/* ---------- 휠 날짜 선택기 ---------- */
-function WheelDatePicker({
-  initialDate,
-  onCancel,
-  onConfirm,
-  minYear = 2020,
-  maxYear = 2035,
-}) {
-  const ITEM_H = 36;
-  const VISIBLE = 5;
-  const PAD_H = (VISIBLE >> 1) * ITEM_H;
+const STATUS_OPTIONS = [
+  { value: "", label: "상태 없음" },
+  { value: "완료", label: "완료" },
+  { value: "교육중", label: "교육중" },
+  { value: "미완료", label: "미완료" },
+];
 
-  const initY = initialDate.getFullYear();
-  const initM = initialDate.getMonth() + 1;
-  const initD = initialDate.getDate();
+const STATUS_STYLES = {
+  완료: "bg-emerald-100 text-emerald-700 border border-emerald-200",
+  교육중: "bg-amber-100 text-amber-700 border border-amber-200",
+  미완료: "bg-rose-100 text-rose-700 border border-rose-200",
+};
 
-  const [year, setYear] = useState(clamp(initY, minYear, maxYear));
-  const [month, setMonth] = useState(initM);
-  const [day, setDay] = useState(initD);
+const INITIAL_DRAFT = {
+  quarter: 1,
+  title: "",
+  status: "",
+  location: "",
+  note: "",
+};
 
-  const yRef = useRef(null);
-  const mRef = useRef(null);
-  const dRef = useRef(null);
-
-  const years = useMemo(
-    () => Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i),
-    [minYear, maxYear]
-  );
-  const months = useMemo(() => Array.from({ length: 12 }, (_, i) => i + 1), []);
-  const days = useMemo(() => {
-    const dim = daysInMonth(year, month);
-    return Array.from({ length: dim }, (_, i) => i + 1);
-  }, [year, month]);
-
-  useEffect(() => {
-    const sync = () => {
-      if (yRef.current) yRef.current.scrollTop = years.indexOf(year) * ITEM_H;
-      if (mRef.current) mRef.current.scrollTop = (month - 1) * ITEM_H;
-      if (dRef.current) dRef.current.scrollTop = (clamp(day, 1, days.length) - 1) * ITEM_H;
-    };
-    sync();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [yRef.current, mRef.current, dRef.current]);
-
-  useEffect(() => {
-    const maxD = days.length;
-    if (day > maxD) setDay(maxD);
-    if (dRef.current) dRef.current.scrollTop = (clamp(day, 1, maxD) - 1) * ITEM_H;
-  }, [year, month, days.length]); // eslint-disable-line
-
-  function onSnap(ref, list, setter) {
-    if (!ref.current) return;
-    const st = ref.current.scrollTop;
-    const idx = clamp(Math.round(st / ITEM_H), 0, list.length - 1);
-    ref.current.scrollTo({ top: idx * ITEM_H, behavior: "smooth" });
-    setter(list[idx]);
+function normalizeQuarter(value) {
+  if (value == null) return null;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const n = Math.round(value);
+    return n >= 1 && n <= 4 ? n : null;
   }
-
-  const timers = useRef({ y: null, m: null, d: null });
-  function handleScroll(ref, key, list, setter) {
-    if (timers.current[key]) clearTimeout(timers.current[key]);
-    timers.current[key] = setTimeout(() => onSnap(ref, list, setter), 120);
-  }
-
-  const columnCls =
-    "relative h-48 overflow-y-auto scroll-smooth snap-y snap-mandatory px-2";
-  const itemCls = "snap-center h-9 leading-9 text-center select-none";
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onCancel}>
-      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-3 text-lg font-semibold">날짜로 이동</div>
-
-        <div className="relative grid grid-cols-3 gap-2">
-          <div className="pointer-events-none absolute left-0 right-0 top-1/2 -translate-y-1/2">
-            <div className="mx-1 rounded-lg border border-blue-200 bg-blue-50/40 h-9" />
-          </div>
-
-          <div className="rounded-lg border bg-white">
-            <div className={columnCls} ref={yRef}
-                 onScroll={() => handleScroll(yRef, "y", years, setYear)}>
-              <div style={{ height: (VISIBLE >> 1) * ITEM_H }} />
-              {years.map((y) => (
-                <div key={y} className={`${itemCls} ${y === year ? "text-blue-600 font-semibold" : "text-gray-700"}`}>
-                  {y}년
-                </div>
-              ))}
-              <div style={{ height: (VISIBLE >> 1) * ITEM_H }} />
-            </div>
-          </div>
-
-          <div className="rounded-lg border bg-white">
-            <div className={columnCls} ref={mRef}
-                 onScroll={() => handleScroll(mRef, "m", months, setMonth)}>
-              <div style={{ height: (VISIBLE >> 1) * ITEM_H }} />
-              {months.map((m) => (
-                <div key={m} className={`${itemCls} ${m === month ? "text-blue-600 font-semibold" : "text-gray-700"}`}>
-                  {m}월
-                </div>
-              ))}
-              <div style={{ height: (VISIBLE >> 1) * ITEM_H }} />
-            </div>
-          </div>
-
-          <div className="rounded-lg border bg-white">
-            <div className={columnCls} ref={dRef}
-                 onScroll={() => handleScroll(dRef, "d", days, setDay)}>
-              <div style={{ height: (VISIBLE >> 1) * ITEM_H }} />
-              {days.map((dd) => (
-                <div key={dd} className={`${itemCls} ${dd === day ? "text-blue-600 font-semibold" : "text-gray-700"}`}>
-                  {dd}일
-                </div>
-              ))}
-              <div style={{ height: (VISIBLE >> 1) * ITEM_H }} />
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5 flex items-center justify-end gap-2">
-          <button onClick={onCancel} className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">취소</button>
-          <button onClick={() => onConfirm(new Date(year, month - 1, day))}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
-            이동
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  const match = value.toString().match(/[1-4]/);
+  if (!match) return null;
+  const n = Number(match[0]);
+  return n >= 1 && n <= 4 ? n : null;
 }
 
-/* ---------- 메인 컴포넌트 ---------- */
+function extractEventsFromDummy() {
+  return transformScheduleList(dummyScheduleData.events || []).map((event) => ({
+    ...event,
+    id: event.id || `dummy-${event.quarter}-${event.title}`,
+  }));
+}
+
+function transformScheduleList(list) {
+  return list
+    .map((item) => {
+      const rawStart = item?.start || item?.begin_at || item?.date || item?.start_date;
+      const derivedYear = rawStart ? new Date(rawStart).getFullYear() : undefined;
+      const year =
+        item?.year ??
+        item?.education_year ??
+        item?.year_no ??
+        item?.yearNumber ??
+        derivedYear ??
+        new Date().getFullYear();
+      return {
+        id: item?.id || item?.education_id || `${item?.quarter}-${item?.title}-${Date.now()}`,
+        year,
+        quarter: normalizeQuarter(
+          item?.quarter ??
+            item?.quarter_no ??
+            item?.quarterNumber ??
+            item?.quarter_name ??
+            item?.quarterLabel
+        ),
+        title:
+          item?.title ??
+          item?.name ??
+          item?.education_name ??
+          item?.educationTitle ??
+          item?.course ??
+          "",
+        status:
+          item?.status ??
+          item?.education_status ??
+          item?.progress ??
+          item?.state ??
+          item?.result ??
+          "",
+        location: item?.location ?? item?.place ?? "",
+        note:
+          item?.note ??
+          item?.description ??
+          item?.memo ??
+          item?.detail ??
+          item?.remark ??
+          "",
+      };
+    })
+    .filter((item) => item.quarter && item.title);
+}
+
+async function fetchSchedulesFromApi(signal) {
+  if (!API_BASE_URL) return [];
+  const headers = { Accept: "application/json" };
+  const token = getAuthToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(`${API_BASE_URL}/education-schedules`, {
+    headers,
+    credentials: "include",
+    signal,
+  });
+  if (!res.ok) throw new Error(`교육 일정 조회 실패 (${res.status})`);
+  const data = await res.json();
+  const list = Array.isArray(data) ? data : Array.isArray(data?.results) ? data.results : [];
+  return transformScheduleList(list);
+}
+
+function groupByQuarter(events, year) {
+  const base = {
+    1: [],
+    2: [],
+    3: [],
+    4: [],
+  };
+  events
+    .filter((event) => event.year === year)
+    .forEach((event) => {
+      const q = normalizeQuarter(event.quarter);
+      if (!q) return;
+      base[q].push(event);
+    });
+  Object.values(base).forEach((list) => list.sort((a, b) => a.title.localeCompare(b.title)));
+  return base;
+}
+
 export default function EducationSchedule() {
-  const calendarRef = useRef(null);
   const [events, setEvents] = useState([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [draft, setDraft] = useState({ date: "", title: "", start: "", end: "", location: "" });
+  const [draft, setDraft] = useState(INITIAL_DRAFT);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [extraYears, setExtraYears] = useState([]);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+
+  const broadcastSchedules = useCallback((list) => {
+    window.dispatchEvent(
+      new CustomEvent("app:data-sync", {
+        detail: { schedules: list, source: "education" },
+      })
+    );
+  }, []);
+
+  const applyScheduleUpdate = useCallback(
+    (list, { broadcast = false } = {}) => {
+      setEvents(list);
+      setExtraYears((prev) => {
+        const merged = new Set(prev);
+        list.forEach((event) => {
+          if (event.year && event.year !== currentYear) merged.add(event.year);
+        });
+        return Array.from(merged).sort((a, b) => a - b);
+      });
+      const yearsFromList = list.map((event) => event.year).filter(Boolean);
+      if (yearsFromList.length) {
+        setSelectedYear((prev) =>
+          yearsFromList.includes(prev) ? prev : Math.max(...yearsFromList)
+        );
+      }
+      if (broadcast) broadcastSchedules(list);
+    },
+    [broadcastSchedules, currentYear]
+  );
+
+  const syncWithServer = useCallback(
+    async ({ broadcast = true, showLoader = false, signal } = {}) => {
+      if (USE_DUMMY_DATA) return;
+      if (showLoader) {
+        setLoading(true);
+        setError("");
+      }
+      try {
+        const list = await fetchSchedulesFromApi(signal);
+        setError("");
+        applyScheduleUpdate(list, { broadcast });
+      } catch (err) {
+        if (err.name === "AbortError") return;
+        console.error(err);
+        setError(err.message || "교육 일정을 불러오지 못했습니다.");
+      } finally {
+        if (showLoader) setLoading(false);
+      }
+    },
+    [applyScheduleUpdate]
+  );
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setEvents(JSON.parse(raw));
-    } catch {}
-  }, []);
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
-  }, [events]);
-
-  const handleDateClick = (info) => {
-    setDraft({ date: info.dateStr, title: "", start: "", end: "", location: "" });
-    setModalOpen(true);
-  };
-
-  const handleEventClick = (clickInfo) => {
-    const ev = clickInfo.event;
-    if (confirm(`"${ev.title}" 일정을 삭제할까요?`)) {
-      setEvents((prev) => prev.filter((e) => e.id !== ev.id));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.version === 2 && Array.isArray(parsed.events)) {
+          if (Array.isArray(parsed.extraYears)) setExtraYears(parsed.extraYears);
+          applyScheduleUpdate(parsed.events, { broadcast: false });
+          setSelectedYear(parsed.selectedYear || currentYear);
+          return;
+        }
+        if (Array.isArray(parsed)) {
+          const migrated = parsed.map((event) => ({
+            ...event,
+            year: event.year || currentYear,
+          }));
+          applyScheduleUpdate(migrated, { broadcast: false });
+          return;
+        }
+      }
+    } catch {
+      /* ignore */
     }
-  };
 
-  const saveEvent = () => {
-    if (!draft.title.trim()) return alert("제목을 입력하세요.");
-    const id = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const hasTime = draft.start || draft.end;
-    const start = hasTime ? `${draft.date}T${draft.start || "00:00"}` : draft.date;
-    const end = draft.end ? `${draft.date}T${draft.end}` : undefined;
+    if (USE_DUMMY_DATA) {
+      const dummyEvents = extractEventsFromDummy();
+      applyScheduleUpdate(dummyEvents, { broadcast: false });
+      return;
+    }
+
+    const controller = new AbortController();
+    syncWithServer({ broadcast: false, showLoader: true, signal: controller.signal }).catch(
+      () => {}
+    );
+    return () => controller.abort();
+  }, [applyScheduleUpdate, currentYear, syncWithServer]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ version: 2, events, selectedYear, extraYears })
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [events, selectedYear, extraYears]);
+
+  const years = useMemo(() => {
+    const yearSet = new Set(events.map((event) => event.year).filter(Boolean));
+    yearSet.add(currentYear);
+    extraYears.forEach((year) => yearSet.add(year));
+    return Array.from(yearSet).sort((a, b) => a - b);
+  }, [events, currentYear, extraYears]);
+
+  useEffect(() => {
+    if (!years.includes(selectedYear)) {
+      const fallback = years[years.length - 1] || currentYear;
+      setSelectedYear(fallback);
+    }
+  }, [years, selectedYear, currentYear]);
+
+  const sections = useMemo(() => groupByQuarter(events, selectedYear), [events, selectedYear]);
+
+  const isReadOnly = selectedYear < currentYear;
+  const readOnlyNotice = isReadOnly
+    ? `${selectedYear}년 일정은 등록 이력이므로 수정할 수 없습니다.`
+    : null;
+
+  const handleExternalSync = useCallback(
+    (evt) => {
+      if (USE_DUMMY_DATA) return;
+      if (evt.detail?.source === "education") return;
+      const payload = evt.detail?.schedules;
+      if (!payload) return;
+      const list = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.results)
+        ? payload.results
+        : Array.isArray(payload?.events)
+        ? payload.events
+        : [];
+      if (!list.length) return;
+      const normalized = transformScheduleList(list);
+      if (!normalized.length) return;
+      applyScheduleUpdate(normalized, { broadcast: false });
+    },
+    [applyScheduleUpdate]
+  );
+
+  useEffect(() => {
+    if (USE_DUMMY_DATA) return;
+    window.addEventListener("app:data-sync", handleExternalSync);
+    return () => window.removeEventListener("app:data-sync", handleExternalSync);
+  }, [handleExternalSync]);
+
+  function handleDraftChange(field, value) {
+    setDraft((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function handleAddYear() {
+    let input = window.prompt(
+      "추가할 연도를 입력하세요.",
+      String(selectedYear >= currentYear ? selectedYear : currentYear)
+    );
+    if (!input) return;
+    input = input.trim();
+    const yearNum = Number(input);
+    if (!Number.isFinite(yearNum) || !Number.isInteger(yearNum)) {
+      alert("유효한 연도를 입력하세요.");
+      return;
+    }
+    if (yearNum < 2000 || yearNum > 2100) {
+      alert("2000년부터 2100년 사이의 연도만 추가할 수 있습니다.");
+      return;
+    }
+    if (years.includes(yearNum)) {
+      setSelectedYear(yearNum);
+      return;
+    }
+    setExtraYears((prev) => [...new Set([...prev, yearNum])].sort((a, b) => a - b));
+    setSelectedYear(yearNum);
+  }
+
+  function openModal() {
+    if (isReadOnly) return;
+    setDraft(INITIAL_DRAFT);
+    setModalOpen(true);
+  }
+
+  async function saveEvent() {
+    if (!draft.title.trim()) {
+      alert("제목을 입력하세요.");
+      return;
+    }
+    const quarter = normalizeQuarter(draft.quarter);
+    if (!quarter) {
+      alert("분기를 선택하세요.");
+      return;
+    }
 
     const newEvent = {
-      id,
-      title: draft.title + (draft.location ? ` · ${draft.location}` : ""),
-      start,
-      end,
-      allDay: !hasTime,
+      id: `quarter-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      year: selectedYear,
+      quarter,
+      title: draft.title.trim(),
+      status: draft.status,
+      location: draft.location.trim(),
+      note: draft.note.trim(),
     };
-    setEvents((prev) => [...prev, newEvent]);
-    setModalOpen(false);
-  };
 
-  const gotoPicker = () => setPickerOpen(true);
-  const gotoDate = (date) => {
-    const api = calendarRef.current?.getApi();
-    if (api) api.gotoDate(date);
-    setPickerOpen(false);
-  };
+    if (USE_DUMMY_DATA) {
+      const nextList = [...events, newEvent];
+      setError("");
+      applyScheduleUpdate(nextList, { broadcast: true });
+      setModalOpen(false);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const payload = {
+        year: selectedYear,
+        quarter,
+        title: newEvent.title,
+        status: newEvent.status || undefined,
+        location: newEvent.location || undefined,
+        note: newEvent.note || undefined,
+      };
+      const res = await fetch(`${API_BASE_URL}/education-schedules`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        let message = text;
+        try {
+          const data = JSON.parse(text || "{}");
+          message = data.message || data.error || data.detail || message;
+        } catch {}
+        throw new Error(message || `HTTP ${res.status}`);
+      }
+      setModalOpen(false);
+      setDraft(INITIAL_DRAFT);
+      await syncWithServer({ broadcast: true });
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "일정을 추가하지 못했습니다.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function removeEvent(id) {
+    if (isReadOnly) return;
+
+    if (USE_DUMMY_DATA) {
+      const nextList = events.filter((event) => event.id !== id);
+      setError("");
+      applyScheduleUpdate(nextList, { broadcast: true });
+      return;
+    }
+
+    setDeletingId(id);
+    try {
+      const res = await fetch(`${API_BASE_URL}/education-schedules/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      });
+      if (!res.ok && res.status !== 204) {
+        const text = await res.text();
+        let message = text;
+        try {
+          const data = JSON.parse(text || "{}");
+          message = data.message || data.error || data.detail || message;
+        } catch {}
+        throw new Error(message || `HTTP ${res.status}`);
+      }
+      await syncWithServer({ broadcast: true });
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "일정을 삭제하지 못했습니다.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div className="flex h-screen bg-gradient-to-r from-pink-300 via-purple-300 to-blue-300">
       {/* Sidebar */}
       <aside className="w-64 bg-gray-800 text-white p-4">
-        <div className="mb-8">
-          <div className="mb-8 flex items-center gap-2">
-            {/* 로고 자리 */}
-            <Link to="/" className="w-10 h-10 bg-white rounded flex items-center justify-center text-gray-800 font-bold">
-              로고
-            </Link>
-            {/* 회사 이름 */}
-            <Link to="/" className="text-xl font-bold">
-              회사 이름
-            </Link>
-          </div>
-        </div>
+        <SidebarBrand />
         <nav>
           <ul className="space-y-2">
             <li>
               <Link to="/dashboard" className="block p-2 hover:bg-gray-700 rounded">
                 Dashboard
-              </Link>
-            </li>
-            <li>
-              <Link to="/setting" className="block p-2 hover:bg-gray-700 rounded">
-                Setting
               </Link>
             </li>
             <li>
@@ -244,111 +463,219 @@ export default function EducationSchedule() {
                 Employee
               </Link>
             </li>
+            <li>
+              <Link to="/notices" className="block p-2 hover:bg-gray-700 rounded">
+                Notices
+              </Link>
+            </li>
           </ul>
         </nav>
       </aside>
 
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">교육일정</h1>
-          <button onClick={gotoPicker} className="rounded-lg border bg-white px-3 py-2 text-sm hover:bg-gray-50">
-            날짜로 이동(스크롤)
-          </button>
+      <div className="mx-auto w-full max-w-6xl space-y-6 mt-12 px-6 pb-10">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-white drop-shadow">교육 일정</h1>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+              className="rounded-lg border border-white/60 bg-white/90 px-3 py-1.5 text-sm font-semibold text-gray-800 shadow"
+            >
+              {years.map((year) => (
+                <option key={year} value={year}>
+                  {year}년
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleAddYear}
+              className="rounded-lg border border-white/60 bg-white/40 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-white/60 hover:text-gray-800"
+            >
+              연도 추가
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={openModal}
+              disabled={isReadOnly || submitting}
+              className={`rounded-lg px-4 py-2 text-sm font-semibold shadow transition ${
+                isReadOnly || submitting
+                  ? "cursor-not-allowed bg-white/50 text-gray-400"
+                  : "bg-white/90 text-gray-800 hover:bg-white"
+              }`}
+            >
+              분기 일정 추가
+            </button>
+          </div>
         </div>
 
-        <div className="glass-card p-3 bg-white rounded-lg shadow-md">
-          <FullCalendar
-            ref={calendarRef}
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            locales={[koLocale]}
-            locale="ko"
-            initialView="dayGridMonth"
-            headerToolbar={{
-              left: "prev,next today",
-              center: "title",
-              right: "dayGridMonth,timeGridWeek,timeGridDay",
-            }}
-            height="auto"
-            weekends={true}
-            selectable={true}
-            dayMaxEvents={3}
-            events={events}
-            dateClick={handleDateClick}
-            eventClick={handleEventClick}
-          />
+        {readOnlyNotice && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            {readOnlyNotice}
+          </div>
+        )}
+
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+          {QUARTERS.map(({ value, label }) => {
+            const list = sections[value] || [];
+            return (
+              <div key={value} className="rounded-2xl bg-white/95 shadow-md border border-white/50 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-800">{label}</h2>
+                  <span className="text-xs text-gray-400">{list.length}건</span>
+                </div>
+                <div className="space-y-3">
+                  {list.length === 0 && (
+                    <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 py-6 text-center text-sm text-gray-400">
+                      등록된 일정이 없습니다.
+                    </div>
+                  )}
+                  {list.map((item) => (
+                    <div key={item.id} className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="text-sm font-semibold text-gray-900">{item.title}</div>
+                          {item.location && (
+                            <div className="text-xs text-gray-500">장소: {item.location}</div>
+                          )}
+                          {item.note && (
+                            <div className="text-xs text-gray-500">비고: {item.note}</div>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          {item.status && (
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${STATUS_STYLES[item.status] || "bg-slate-100 text-slate-600 border border-slate-200"}`}>
+                              {item.status}
+                            </span>
+                          )}
+                          {!isReadOnly && (
+                            <button
+                              onClick={() => removeEvent(item.id)}
+                              disabled={deletingId === item.id}
+                              className={`text-xs font-medium ${
+                                deletingId === item.id
+                                  ? "cursor-not-allowed text-gray-400"
+                                  : "text-red-500 hover:text-red-600"
+                              }`}
+                            >
+                              {deletingId === item.id ? "삭제 중..." : "삭제"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
+
+        {loading && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+            교육 일정을 불러오는 중입니다...
+          </div>
+        )}
       </div>
 
-      {pickerOpen && (
-        <WheelDatePicker
-          initialDate={calendarRef.current?.getApi?.().getDate?.() ?? new Date()}
-          onCancel={() => setPickerOpen(false)}
-          onConfirm={gotoDate}
-          minYear={2020}
-          maxYear={2035}
-        />
-      )}
-
-      {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setModalOpen(false)}>
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-3 text-lg font-semibold">일정 추가</div>
-            <div className="space-y-3">
-              <label className="block">
-                <span className="mb-1 block text-sm text-gray-600">날짜</span>
-                <input
-                  type="date"
-                  value={draft.date}
-                  onChange={(e) => setDraft((v) => ({ ...v, date: e.target.value }))}
-                  className="w-full rounded-lg border px-3 py-2 text-sm"
-                />
+      {modalOpen && !isReadOnly && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          onClick={() => setModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-white px-6 py-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 text-lg font-semibold text-gray-900">분기 일정 추가</div>
+            <div className="space-y-4">
+              <label className="block text-sm text-gray-700">
+                분기
+                <select
+                  value={draft.quarter}
+                  onChange={(e) => handleDraftChange("quarter", Number(e.target.value))}
+                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                >
+                  {QUARTERS.map((quarter) => (
+                    <option key={quarter.value} value={quarter.value}>
+                      {quarter.label}
+                    </option>
+                  ))}
+                </select>
               </label>
-              <label className="block">
-                <span className="mb-1 block text-sm text-gray-600">제목 *</span>
+
+              <label className="block text-sm text-gray-700">
+                제목 *
                 <input
                   value={draft.title}
-                  onChange={(e) => setDraft((v) => ({ ...v, title: e.target.value }))}
-                  placeholder="예: 안전모 착용 교육"
-                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                  onChange={(e) => handleDraftChange("title", e.target.value)}
+                  placeholder="예: 2분기 화재 대응 교육"
+                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                 />
               </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="mb-1 block text-sm text-gray-600">시작</span>
-                  <input
-                    type="time"
-                    value={draft.start}
-                    onChange={(e) => setDraft((v) => ({ ...v, start: e.target.value }))}
-                    className="w-full rounded-lg border px-3 py-2 text-sm"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-sm text-gray-600">종료</span>
-                  <input
-                    type="time"
-                    value={draft.end}
-                    onChange={(e) => setDraft((v) => ({ ...v, end: e.target.value }))}
-                    className="w-full rounded-lg border px-3 py-2 text-sm"
-                  />
-                </label>
-              </div>
-              <label className="block">
-                <span className="mb-1 block text-sm text-gray-600">장소 (선택)</span>
+
+              <label className="block text-sm text-gray-700">
+                상태
+                <select
+                  value={draft.status}
+                  onChange={(e) => handleDraftChange("status", e.target.value)}
+                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                >
+                  {STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block text-sm text-gray-700">
+                장소
                 <input
                   value={draft.location}
-                  onChange={(e) => setDraft((v) => ({ ...v, location: e.target.value }))}
-                  placeholder="예: 제1실습실"
-                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                  onChange={(e) => handleDraftChange("location", e.target.value)}
+                  placeholder="예: 본사 교육실 A"
+                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                />
+              </label>
+
+              <label className="block text-sm text-gray-700">
+                비고
+                <textarea
+                  value={draft.note}
+                  onChange={(e) => handleDraftChange("note", e.target.value)}
+                  placeholder="예: 전 직원 필참"
+                  rows={3}
+                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
                 />
               </label>
             </div>
 
-            <div className="mt-5 flex items-center justify-end gap-2">
-              <button onClick={() => setModalOpen(false)} className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50">
+            <div className="mt-6 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setModalOpen(false)}
+                className="rounded-lg border px-4 py-2 text-sm hover:bg-gray-50"
+              >
                 취소
               </button>
-              <button onClick={saveEvent} className="rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700">
-                저장
+              <button
+                onClick={saveEvent}
+                disabled={submitting}
+                className={`rounded-lg px-4 py-2 text-sm font-semibold text-white ${
+                  submitting
+                    ? "cursor-not-allowed bg-blue-300"
+                    : "bg-blue-600 hover:bg-blue-700"
+                }`}
+              >
+                {submitting ? "저장 중..." : "저장"}
               </button>
             </div>
           </div>

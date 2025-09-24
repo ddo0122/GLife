@@ -1,40 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import * as RealAPI from "../lib/api"; // 실제 API (모의모드 OFF일 때 사용)
 import { Link } from "react-router-dom";
+import SidebarBrand from "../components/SidebarBrand";
+import { dummyScheduleApi } from "../lib/dummyData";
 
-// ✅ true면 파일 내부 MOCK 사용, false면 실제 API 사용
-const USE_INLINE_MOCK = true;
+// 로컬 개발(.env에서 VITE_USE_LOCAL_AUTH=true)일 때는 공통 더미 데이터 사용
+const USE_INLINE_MOCK = import.meta.env?.VITE_USE_LOCAL_AUTH === "true";
 
-/* ---------------- MOCK DATA ---------------- */
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const mockDB = {
-  employees: [
-    { empNo: "6465", name: "김준혁", dept: "생산팀" },
-    { empNo: "5665", name: "심민식", dept: "R&D" },
-    { empNo: "1755", name: "하은현", dept: "안전관리팀" },
-    { empNo: "2024-001", name: "박소은", dept: "인사팀" },
-    { empNo: "2024-002", name: "이도윤", dept: "품질팀" },
-    { empNo: "3001", name: "정우성", dept: "생산지원" },
-  ],
-  events: [
-    { id: "ev-2025-09-10-0900", title: "안전모 착용 교육", start: "2025-09-10T09:00", end: "2025-09-10T10:00", allDay: false, location: "제1실습실", description: "기본 안전모 착용법 및 점검 포인트 실습" },
-    { id: "ev-2025-09-18-all",  title: "화재 대피 훈련",   start: "2025-09-18",        allDay: true,  location: "전사",   description: "대피 동선 점검" },
-    { id: "ev-2025-10-02-1400", title: "작업발판 안전 교육", start: "2025-10-02T14:00", end: "2025-10-02T16:00", allDay: false, location: "제2강의실" },
-    { id: "ev-2025-10-15-1000", title: "유해화학물질 취급 교육", start: "2025-10-15T10:00", end: "2025-10-15T12:00", allDay: false, location: "실험동 B103" },
-  ],
-  eventMeta: {
-    "ev-2025-09-10-0900": { enrolledEmpNos: ["6465","5665","1755","2024-001"], completedEmpNos: ["6465","1755"] },
-    "ev-2025-09-18-all":  { enrolledEmpNos: ["6465","5665","2024-002","2024-001","3001"], completedEmpNos: ["5665"] },
-    "ev-2025-10-02-1400": { enrolledEmpNos: ["6465","2024-001","2024-002"], completedEmpNos: [] },
-    "ev-2025-10-15-1000": { enrolledEmpNos: ["5665","1755","3001"], completedEmpNos: ["3001"] },
-  },
-};
-const mockAPI = {
-  async listEvents(){ await sleep(120); return [...mockDB.events].sort((a,b)=>new Date(b.start)-new Date(a.start)); },
-  async getEventDetail(id){ await sleep(100); const ev=mockDB.events.find(x=>x.id===id); if(!ev) throw new Error("이벤트 없음"); return {...ev, ...(mockDB.eventMeta[id]||{enrolledEmpNos:[],completedEmpNos:[]})}; },
-  async listEmployees(){ await sleep(80); return [...mockDB.employees]; },
-};
-const API = USE_INLINE_MOCK ? mockAPI : RealAPI;
+const API = USE_INLINE_MOCK ? dummyScheduleApi : RealAPI;
 
 /* ---------------- UTIL ---------------- */
 function fmtDateTime(ev){
@@ -110,28 +83,12 @@ export default function ScheduleViewer(){
     <div className="flex h-screen bg-gradient-to-r from-pink-300 via-purple-300 to-blue-300">
       {/* Sidebar */}
       <aside className="w-64 bg-gray-800 text-white p-4">
-        <div className="mb-8">
-          <div className="mb-8 flex items-center gap-2">
-            {/* 로고 자리 */}
-            <Link to="/" className="w-10 h-10 bg-white rounded flex items-center justify-center text-gray-800 font-bold">
-              로고
-            </Link>
-            {/* 회사 이름 */}
-            <Link to="/" className="text-xl font-bold">
-              회사 이름
-            </Link>
-          </div>
-        </div>
+        <SidebarBrand />
         <nav>
           <ul className="space-y-2">
             <li>
               <Link to="/dashboard" className="block p-2 hover:bg-gray-700 rounded">
                 Dashboard
-              </Link>
-            </li>
-            <li>
-              <Link to="/setting" className="block p-2 hover:bg-gray-700 rounded">
-                Setting
               </Link>
             </li>
             <li>
@@ -149,13 +106,18 @@ export default function ScheduleViewer(){
                 Employee
               </Link>
             </li>
+            <li>
+              <Link to="/notices" className="block p-2 hover:bg-gray-700 rounded">
+                Notices
+              </Link>
+            </li>
           </ul>
         </nav>
       </aside>
 
-      <div className="mx-auto max-w-6xl space-y-4">
+      <div className="mx-auto w-full max-w-6xl space-y-6 mt-12 px-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">교육일정 조회</h1>
+          <h1 className="text-2xl font-bold text-white drop-shadow">교육일정 조회</h1>
           <div className="flex items-center gap-3">
             <input value={q} onChange={e=>setQ(e.target.value)} placeholder="제목/장소 검색"
                    className="w-56 rounded-lg border bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-300"/>

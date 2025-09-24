@@ -8,7 +8,7 @@ export default function Login(){
   const nav = useNavigate();
   const loc = useLocation();
   // 로그인 후 기본 이동 경로를 대시보드로 (이전 페이지 정보가 있을 땐 거기로)
-  const from = loc.state?.from?.pathname || "/dashboard";
+  const from = loc.state?.from?.pathname || "/home";
 
   const [id, setId] = useState("");
   const [pw, setPw] = useState("");
