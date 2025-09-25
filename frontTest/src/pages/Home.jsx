@@ -126,6 +126,13 @@ function cloneDefaultSections() {
   }));
 }
 
+function createEmptySections() {
+  return DEFAULT_EDUCATION_SECTIONS.map((section) => ({
+    ...section,
+    items: [],
+  }));
+}
+
 function asArray(payload) {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.results)) return payload.results;
@@ -177,9 +184,9 @@ function normalizeEducationItem(raw) {
   };
 }
 
-function mergeEducationSections(apiItems) {
+function mergeEducationSections(apiItems, { fallbackToDefaults = false } = {}) {
   if (!Array.isArray(apiItems) || apiItems.length === 0) {
-    return cloneDefaultSections();
+    return fallbackToDefaults ? cloneDefaultSections() : createEmptySections();
   }
   const grouped = {};
   apiItems.forEach((item) => {
@@ -190,14 +197,16 @@ function mergeEducationSections(apiItems) {
   });
 
   const hasAny = Object.values(grouped).some((list) => list.length > 0);
-  if (!hasAny) return cloneDefaultSections();
+  if (!hasAny) return fallbackToDefaults ? cloneDefaultSections() : createEmptySections();
 
   return DEFAULT_EDUCATION_SECTIONS.map((section) => {
     const list = grouped[section.quarter];
     if (!list?.length) {
       return {
         ...section,
-        items: section.items.map((item) => ({ ...item })),
+        items: fallbackToDefaults
+          ? section.items.map((item) => ({ ...item }))
+          : [],
       };
     }
     return {
@@ -326,7 +335,9 @@ function describeArc(cx, cy, radius, startAngle, endAngle) {
 const Home = () => {
   const [employees, setEmployees] = useState(() => (USE_DUMMY_DATA ? getDummyEmployeesForHome() : []));
   const [educationSections, setEducationSections] = useState(() =>
-    USE_DUMMY_DATA ? mergeEducationSections(getDummyEducationSchedule()) : cloneDefaultSections()
+    USE_DUMMY_DATA
+      ? mergeEducationSections(getDummyEducationSchedule(), { fallbackToDefaults: true })
+      : createEmptySections()
   );
 
   const employeeSummary = useMemo(() => buildEmployeeSummary(employees), [employees]);
@@ -378,7 +389,7 @@ const Home = () => {
   useEffect(() => {
     let isMounted = true;
     if (USE_DUMMY_DATA) {
-      setEducationSections(mergeEducationSections(getDummyEducationSchedule()));
+      setEducationSections(mergeEducationSections(getDummyEducationSchedule(), { fallbackToDefaults: true }));
       return () => {
         isMounted = false;
       };
@@ -448,24 +459,30 @@ const Home = () => {
               <div key={section.quarter} className="mb-6 last:mb-0">
                 <p className="font-bold mb-2">{section.heading}</p>
                 <div className="flex flex-col gap-4">
-                  {section.items.map((item) => {
-                    const statusMeta = resolveStatus(item.status);
-                    const titleWithStatus = statusMeta.label
-                      ? `${item.title} (${statusMeta.label})`
-                      : item.title;
-                    return (
-                      <div
-                        key={item.id}
-                        className={`border rounded overflow-hidden ${statusMeta.borderClass}`}
-                      >
+                  {section.items.length === 0 ? (
+                    <div className="h-24 rounded border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center px-4 text-center text-sm text-gray-500">
+                      등록된 일정 없음
+                    </div>
+                  ) : (
+                    section.items.map((item) => {
+                      const statusMeta = resolveStatus(item.status);
+                      const titleWithStatus = statusMeta.label
+                        ? `${item.title} (${statusMeta.label})`
+                        : item.title;
+                      return (
                         <div
-                          className={`h-24 flex items-center justify-center px-4 text-center ${statusMeta.bgClass} ${statusMeta.textClass}`}
+                          key={item.id}
+                          className={`border rounded overflow-hidden ${statusMeta.borderClass}`}
                         >
-                          <span className="text-sm sm:text-base">{titleWithStatus}</span>
+                          <div
+                            className={`h-24 flex items-center justify-center px-4 text-center ${statusMeta.bgClass} ${statusMeta.textClass}`}
+                          >
+                            <span className="text-sm sm:text-base">{titleWithStatus}</span>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </div>
             ))}
